@@ -1,0 +1,353 @@
+<title>Simulador ESL Guatemala</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: columna de parámetros editables a la izquierda, resultados como "etiquetas de estante" e-paper a la derecha. */
+:root {
+  --paper: #eef0ec; --surface: #fbfbf8; --ink: #17191c; --muted: #5d6460; --line: #d3d7d1;
+  --red: #c8102e; --good: #2f7d4f; --warn: #a8660b; --bad: #b3261e; --field: #ffffff;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #131615; --surface: #1c201e; --ink: #e9ece7; --muted: #9aa39d; --line: #333a36;
+  --red: #ff5a6e; --good: #5fc58a; --warn: #e2a64a; --bad: #ff7b72; --field: #232825; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #131615; --surface: #1c201e; --ink: #e9ece7; --muted: #9aa39d; --line: #333a36;
+  --red: #ff5a6e; --good: #5fc58a; --warn: #e2a64a; --bad: #ff7b72; --field: #232825; color-scheme: dark }
+body { background: var(--paper); color: var(--ink); font: 15px/1.5 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px 48px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 28px; }
+h1 { font: 800 clamp(26px, 4vw, 38px)/1.1 var(--display); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font: 700 21px/1.2 var(--display); margin: 0; text-wrap: balance; }
+h3 { font: 600 13px/1.3 var(--body); margin: 0; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+p { margin: 0; max-width: 68ch; }
+.lede { color: var(--muted); }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: 500 14px var(--body); border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  padding: 7px 14px; border-radius: 4px; cursor: pointer; }
+button:hover { border-color: var(--ink); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+button[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.section { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 860px) { .section { grid-template-columns: 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.params { display: grid; gap: 2px; }
+.param { display: grid; grid-template-columns: minmax(0, 1fr) 112px; gap: 4px 12px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.param label { font-weight: 500; font-size: 14px; }
+.param small { grid-column: 1 / -1; color: var(--muted); font-size: 12px; line-height: 1.35; }
+.param .unit { color: var(--muted); font-weight: 400; font-size: 12px; }
+.param input { width: 100%; box-sizing: border-box; font: 15px var(--mono); padding: 5px 8px; text-align: right;
+  background: var(--field); color: var(--ink); border: 1px solid var(--line); border-radius: 3px; font-variant-numeric: tabular-nums; }
+.param input.changed { border-color: var(--red); }
+/* Resultados con forma de etiqueta electrónica */
+.labels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.esl { background: var(--field); border: 1px solid var(--line); border-radius: 3px; padding: 10px 12px 8px; display: grid; gap: 2px; position: relative; }
+.esl::after { content: ""; position: absolute; right: 8px; top: 8px; width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
+.esl.hot::after { background: var(--red); }
+.esl .k { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.esl .v { font: 600 26px/1.15 var(--mono); font-variant-numeric: tabular-nums; }
+.esl .d { font: 12px var(--mono); color: var(--muted); min-height: 1.3em; }
+.d.up { color: var(--good); } .d.down { color: var(--bad); }
+.verdict { padding: 10px 12px; border-radius: 4px; border-left: 4px solid var(--muted); background: var(--paper); font-size: 14px; }
+.verdict.good { border-color: var(--good); } .verdict.warn { border-color: var(--warn); } .verdict.bad { border-color: var(--bad); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; font-variant-numeric: tabular-nums; }
+th:first-child, td:first-child { text-align: left; }
+th { font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+td { font-family: var(--mono); }
+td.neg { color: var(--bad); }
+.tornado { display: grid; gap: 6px; }
+.trow { display: grid; grid-template-columns: minmax(0, 190px) minmax(0, 1fr); gap: 10px; align-items: center; font-size: 13px; }
+.track { position: relative; height: 16px; background: var(--paper); border-radius: 2px; }
+.seg { position: absolute; top: 2px; height: 12px; background: var(--ink); opacity: .75; border-radius: 2px; }
+.mid { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--red); }
+.axis { display: flex; justify-content: space-between; font: 11px var(--mono); color: var(--muted); margin-left: 200px; }
+@media (max-width: 520px) { .trow { grid-template-columns: 1fr; } .axis { margin-left: 0; } .labels { grid-template-columns: 1fr 1fr; } .esl .v { font-size: 21px; } }
+svg text { fill: var(--muted); font: 11px var(--mono); }
+.note { font-size: 13px; color: var(--muted); }
+.copyout { width: 100%; box-sizing: border-box; font: 12px var(--mono); background: var(--field); color: var(--ink); border: 1px solid var(--line); border-radius: 3px; padding: 8px; min-height: 64px; }
+</style>
+
+<div class="wrap">
+  <header style="display:grid;gap:10px">
+    <h3>Price-Tags · espacio de trabajo · módulo 3</h3>
+    <h1>Simulador ESL Guatemala</h1>
+    <p class="lede">¿Cuándo le conviene a una tienda guatemalteca cambiar etiquetas de papel por electrónicas, y cuánto gana el integrador local que las instala? Cambie cualquier número: todo se recalcula y se compara contra el escenario base.</p>
+    <div class="bar" role="group" aria-label="Escenario">
+      <button id="esc-base" data-esc="base" aria-pressed="true">Base</button>
+      <button id="esc-favorable" data-esc="favorable">Favorable</button>
+      <button id="esc-desfavorable" data-esc="desfavorable">Desfavorable</button>
+      <button id="esc-farmacia" data-esc="farmacia">Farmacia de cadena</button>
+    </div>
+    <p class="note">Las cifras son supuestos de trabajo (ver la nota bajo cada parámetro). Las fuentes están en la bitácora del repositorio.</p>
+  </header>
+
+  <section class="section" aria-labelledby="t-cliente">
+    <div class="panel">
+      <h2 id="t-cliente">1 · Caso del cliente: una tienda</h2>
+      <div class="params" id="p-cliente"></div>
+    </div>
+    <div style="display:grid;gap:16px;min-width:0">
+      <div class="panel">
+        <h3>Resultado por tienda</h3>
+        <div class="labels" id="r-cliente"></div>
+        <div class="verdict" id="v-cliente"></div>
+      </div>
+      <div class="panel">
+        <h3>Qué mueve el repago (cada variable ±30%)</h3>
+        <div class="tornado" id="tornado"></div>
+        <div class="axis"><span>0 años</span><span>5</span><span>10</span><span>15+</span></div>
+        <p class="note">La línea roja es el repago actual. Las barras más largas son las variables que más vale la pena medir con un cliente real.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="t-integ">
+    <div class="panel">
+      <h2 id="t-integ">2 · Negocio del integrador</h2>
+      <p class="note">Usa el costo por tienda calculado arriba. Supone que las tiendas compran al ritmo indicado; el caso del cliente dice si eso es realista.</p>
+      <div class="params" id="p-integ"></div>
+    </div>
+    <div style="display:grid;gap:16px;min-width:0">
+      <div class="panel">
+        <h3>Resultado a 5 años</h3>
+        <div class="labels" id="r-integ"></div>
+        <svg id="chart" viewBox="0 0 520 190" role="img" aria-label="Caja acumulada por año" style="width:100%;height:auto"></svg>
+        <div class="scroll"><table id="t-anios"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="t-copiar">
+    <h2 id="t-copiar">Llevar este escenario a la bitácora</h2>
+    <p class="note">Copie el texto y péguelo en el chat para que se registre el escenario y se actualicen los resultados afectados.</p>
+    <div class="bar"><button id="btn-copiar">Copiar parámetros</button><span id="copiado" class="note"></span></div>
+    <textarea id="copyout" class="copyout" readonly aria-label="Parámetros actuales"></textarea>
+  </section>
+</div>
+
+<script>
+// Modelo ESL Guatemala — lo usan simulador.html (navegador) y node (para la bitácora).
+// Todas las cifras en US$. Cada parámetro tiene base / favorable / desfavorable.
+(function (root) {
+  // ---------- 1. Caso del cliente: una tienda ----------
+  const CLIENTE = [
+    // id, etiqueta, unidad, base, fav, desf, nota/fuente
+    ["etiquetas", "Etiquetas por tienda", "u", 10000, 10000, 10000, "Supuesto: supermercado mediano GT. EEUU: 30–40 mil (PDF p.3)"],
+    ["hwEtiqueta", "Precio etiqueta (FOB)", "US$/u", 6, 4.5, 9, "PDF p.3: US$5–15 en EEUU; marcas chinas de 2º nivel más baratas"],
+    ["internacion", "Flete + DAI + agente", "%", 15, 10, 25, "Supuesto. DAI exacto por partida: abierto. IVA 12% acreditable, no se cuenta"],
+    ["infraTienda", "Gateways, red y rieles", "US$/tienda", 4000, 2500, 8000, "PDF p.3: US$15–50 mil en EEUU; escalado a GT, por validar"],
+    ["instalEtiqueta", "Instalación y depuración", "US$/etiqueta", 0.6, 0.4, 1.0, "Supuesto con mano de obra local"],
+    ["integracion", "Integración POS/ERP", "US$/tienda", 3000, 1500, 8000, "Supuesto. La 1ª tienda de una cadena cuesta más"],
+    ["licencia", "Licencia + soporte", "US$/etiqueta/año", 0.6, 0.4, 1.0, "PDF p.3: US$10–40 mil/tienda/año en EEUU"],
+    ["reposicion", "Reposición anual (roturas)", "% del hardware", 1.5, 1, 3, "Supuesto"],
+    ["cambiosSemana", "Cambios de precio por semana", "cambios", 1500, 2500, 600, "Supuesto. Dato clave a medir en entrevistas"],
+    ["minCambio", "Minutos por cambio manual", "min", 2, 2.5, 1.5, "PDF p.3: 1–2 min en EEUU"],
+    ["costoHora", "Costo por hora con prestaciones", "US$/h", 4.1, 5, 3.5, "Salario mín. CE1 2026 Q4,252 + ~42% prestaciones ÷190 h ÷ Q7.62"],
+    ["papelCambio", "Papel e impresión por cambio", "US$", 0.03, 0.05, 0.02, "Supuesto"],
+    ["ventasTienda", "Ventas anuales por tienda", "US$", 3000000, 4000000, 2000000, "Supuesto. Pedir dato real al cliente"],
+    ["margenPct", "Mejora de margen (exactitud, rebajas, promos)", "% de ventas", 0.2, 0.5, 0.05, "Supuesto. Es la variable que más mueve el caso"],
+    ["multas", "Multas y reclamos evitados", "US$/año", 500, 2000, 0, "Supuesto. Monto de sanciones Diaco: abierto"],
+    ["otros", "Otros beneficios (pedidos en línea, etc.)", "US$/año", 0, 3000, 0, "Supuesto"],
+    ["tasa", "Tasa de descuento", "%", 12, 10, 15, "Supuesto"],
+  ];
+
+  // ---------- 2. Negocio del integrador ----------
+  const INTEGRADOR = [
+    ["tiendasAnio1", "Tiendas instaladas año 1", "tiendas", 4, 8, 2, "Supuesto: piloto + 1 cadena"],
+    ["crecimiento", "Crecimiento anual de tiendas", "%", 50, 80, 20, "Supuesto"],
+    ["margenHw", "Margen sobre hardware", "%", 20, 25, 12, "Supuesto. Por confirmar con fabricantes"],
+    ["margenServ", "Margen sobre instalación e integración", "%", 45, 55, 30, "Supuesto"],
+    ["partLicencia", "Parte del integrador en la licencia", "%", 40, 50, 25, "Supuesto. Por confirmar con fabricantes"],
+    ["fijos", "Costos fijos (equipo, oficina)", "US$/año", 60000, 50000, 80000, "Supuesto: 1 técnico, 1 dev, ventas a medio tiempo"],
+    ["inversionInicial", "Inversión inicial (demo, inventario, conector)", "US$", 30000, 20000, 50000, "Supuesto"],
+  ];
+
+  const defaults = (tabla, col) => Object.fromEntries(tabla.map(r => [r[0], r[col]]));
+  const ESCENARIOS = {
+    base: { ...defaults(CLIENTE, 3), ...defaults(INTEGRADOR, 3) },
+    favorable: { ...defaults(CLIENTE, 4), ...defaults(INTEGRADOR, 4) },
+    desfavorable: { ...defaults(CLIENTE, 5), ...defaults(INTEGRADOR, 5) },
+  };
+  // Farmacia de cadena: base con menos etiquetas, menos cambios y menos ventas (todo supuesto).
+  ESCENARIOS.farmacia = { ...ESCENARIOS.base, etiquetas: 3000, cambiosSemana: 300, ventasTienda: 700000,
+    infraTienda: 1500, integracion: 1500, tiendasAnio1: 15 };
+
+  function cliente(p) {
+    const hw = p.etiquetas * p.hwEtiqueta * (1 + p.internacion / 100);
+    const instal = p.etiquetas * p.instalEtiqueta;
+    const capex = hw + p.infraTienda + instal + p.integracion;
+    const cambiosAnio = p.cambiosSemana * 52;
+    const horas = cambiosAnio * p.minCambio / 60;
+    const ahorroMO = horas * p.costoHora;
+    const ahorroPapel = cambiosAnio * p.papelCambio;
+    const ahorroMargen = p.ventasTienda * p.margenPct / 100;
+    const beneficios = ahorroMO + ahorroPapel + ahorroMargen + p.multas + p.otros;
+    const opex = p.etiquetas * p.licencia + hw * p.reposicion / 100;
+    const neto = beneficios - opex;
+    const repagoAnios = neto > 0 ? capex / neto : Infinity;
+    let van = -capex;
+    for (let t = 1; t <= 5; t++) van += neto / Math.pow(1 + p.tasa / 100, t);
+    const soloMO = ahorroMO + ahorroPapel - opex;
+    return {
+      hw, instal, capex, capexPorEtiqueta: capex / p.etiquetas, horas, ahorroMO, ahorroPapel,
+      ahorroMargen, beneficios, opex, neto, repagoAnios, van5: van,
+      repagoSoloMO: soloMO > 0 ? capex / soloMO : Infinity,
+      // ¿Cuánta mejora de margen hace falta para pagar en 2 años?
+      margenParaRepago2: Math.max(0, (capex / 2 + opex - ahorroMO - ahorroPapel - p.multas - p.otros) / p.ventasTienda * 100),
+    };
+  }
+
+  function integrador(p) {
+    const c = cliente(p);
+    const anios = [];
+    let tiendas = p.tiendasAnio1, base = 0, caja = -p.inversionInicial;
+    for (let a = 1; a <= 5; a++) {
+      const nuevas = Math.round(tiendas);
+      const ventasHw = nuevas * (c.hw + p.infraTienda);
+      const ventasServ = nuevas * (c.instal + p.integracion);
+      base += nuevas;
+      const ingresoRec = base * p.etiquetas * p.licencia;
+      const margen = ventasHw * p.margenHw / 100 + ventasServ * p.margenServ / 100 + ingresoRec * p.partLicencia / 100;
+      const ebitda = margen - p.fijos;
+      caja += ebitda;
+      anios.push({ anio: a, nuevas, base, ingresos: ventasHw + ventasServ + ingresoRec, margen, recurrente: ingresoRec * p.partLicencia / 100, ebitda, caja });
+      tiendas *= 1 + p.crecimiento / 100;
+    }
+    const margenPorTienda = (c.hw + p.infraTienda) * p.margenHw / 100 + (c.instal + p.integracion) * p.margenServ / 100;
+    const recPorTienda = p.etiquetas * p.licencia * p.partLicencia / 100;
+    return { anios, margenPorTienda, recPorTienda, tiendasEquilibrio: p.fijos / (margenPorTienda + recPorTienda) };
+  }
+
+  // Sensibilidad: mueve cada parámetro ±30% y mide el repago del cliente.
+  function sensibilidad(p, delta = 0.3) {
+    const base = cliente(p).repagoAnios;
+    return CLIENTE.filter(r => !["etiquetas", "tasa"].includes(r[0])).map(([id, nombre]) => {
+      const lo = cliente({ ...p, [id]: p[id] * (1 - delta) }).repagoAnios;
+      const hi = cliente({ ...p, [id]: p[id] * (1 + delta) }).repagoAnios;
+      const cap = x => Math.min(x, 15);
+      return { id, nombre, lo, hi, rango: Math.abs(cap(hi) - cap(lo)), base };
+    }).sort((a, b) => b.rango - a.rango);
+  }
+
+  const api = { CLIENTE, INTEGRADOR, ESCENARIOS, cliente, integrador, sensibilidad };
+  if (typeof module !== "undefined") module.exports = api; else root.ModeloESL = api;
+})(this);
+</script>
+<script>
+const M = window.ModeloESL;
+let esc = "base";
+let p = { ...M.ESCENARIOS.base };
+const fmt = (x, d = 0) => !isFinite(x) ? "no paga" : x.toLocaleString("es-GT", { maximumFractionDigits: d, minimumFractionDigits: d });
+const usd = x => (x < 0 ? "−US$" : "US$") + fmt(Math.abs(x));
+const anios = x => !isFinite(x) || x > 50 ? "no paga" : fmt(x, 1) + " años";
+
+function buildParams(tabla, el) {
+  el.innerHTML = tabla.map(([id, nombre, unidad, , , , nota]) => `
+    <div class="param"><label for="in-${id}">${nombre} <span class="unit">${unidad}</span></label>
+    <input id="in-${id}" data-id="${id}" type="number" step="any" inputmode="decimal">
+    <small>${nota}</small></div>`).join("");
+  el.querySelectorAll("input").forEach(inp => inp.addEventListener("input", () => {
+    const v = parseFloat(inp.value); if (!isNaN(v)) { p[inp.dataset.id] = v; render(); }
+  }));
+}
+function syncInputs() {
+  const ref = M.ESCENARIOS[esc];
+  document.querySelectorAll(".param input").forEach(inp => {
+    const id = inp.dataset.id;
+    if (document.activeElement !== inp) inp.value = p[id];
+    inp.classList.toggle("changed", p[id] !== ref[id]);
+  });
+}
+function delta(now, ref, better = "up", kind = "usd") {
+  if (!isFinite(now) || !isFinite(ref)) return now === ref ? "" : `<span class="d">base: ${kind === "yr" ? anios(ref) : usd(ref)}</span>`;
+  const diff = now - ref; if (Math.abs(diff) < 0.05) return `<span class="d">= base</span>`;
+  const good = better === "up" ? diff > 0 : diff < 0;
+  const txt = kind === "yr" ? `${diff > 0 ? "+" : "−"}${fmt(Math.abs(diff), 1)} años` : `${diff > 0 ? "+" : "−"}${usd(Math.abs(diff)).replace("−", "")}`;
+  return `<span class="d ${good ? "up" : "down"}">${txt} vs base</span>`;
+}
+const card = (k, v, d = "", hot = false) => `<div class="esl${hot ? " hot" : ""}"><span class="k">${k}</span><span class="v">${v}</span>${d || '<span class="d"></span>'}</div>`;
+
+function render() {
+  syncInputs();
+  const ref = M.ESCENARIOS.base;
+  const c = M.cliente(p), cb = M.cliente(ref);
+  document.getElementById("r-cliente").innerHTML =
+    card("Inversión inicial", usd(c.capex), delta(c.capex, cb.capex, "down")) +
+    card("Costo por etiqueta", "US$" + fmt(c.capexPorEtiqueta, 2), `<span class="d">EEUU: US$10–12</span>`) +
+    card("Beneficio anual", usd(c.beneficios), delta(c.beneficios, cb.beneficios)) +
+    card("Costo anual (licencia, reposición)", usd(c.opex), delta(c.opex, cb.opex, "down")) +
+    card("Repago", anios(c.repagoAnios), delta(c.repagoAnios, cb.repagoAnios, "down", "yr"), true) +
+    card("Repago solo con mano de obra", anios(c.repagoSoloMO), `<span class="d">el argumento de EEUU</span>`) +
+    card("Valor presente neto, 5 años", usd(c.van5), delta(c.van5, cb.van5), true) +
+    card("Mejora de margen para pagar en 2 años", fmt(c.margenParaRepago2, 2) + "% ventas", `<span class="d">supuesto actual: ${fmt(p.margenPct, 2)}%</span>`);
+  const v = document.getElementById("v-cliente");
+  const r = c.repagoAnios;
+  v.className = "verdict " + (r <= 2 ? "good" : r <= 4 ? "warn" : "bad");
+  const mix = c.beneficios > 0 ? Math.round(c.ahorroMO / c.beneficios * 100) : 0;
+  v.innerHTML = (r <= 2 ? "<b>Se vende solo.</b> Repago dentro de lo que reportan Aperion e IGA (18–24 meses)."
+    : r <= 4 ? "<b>Vendible con caso de negocio.</b> Necesita cifras reales de errores y margen del cliente."
+    : "<b>Difícil de vender.</b> El ahorro no cubre la inversión en un plazo que un gerente acepte.")
+    + ` La mano de obra aporta ${mix}% del beneficio (${fmt(c.horas)} horas al año).`;
+
+  // Tornado
+  const s = M.sensibilidad(p).slice(0, 8), cap = 15, x = v2 => Math.min(isFinite(v2) ? v2 : cap, cap) / cap * 100;
+  document.getElementById("tornado").innerHTML = s.map(t => {
+    const a = x(Math.min(t.lo, t.hi)), b = x(Math.max(t.lo, t.hi));
+    return `<div class="trow"><span>${t.nombre}</span><div class="track" title="${anios(t.lo)} a ${anios(t.hi)}">
+      <div class="seg" style="left:${a}%;width:${Math.max(b - a, 0.8)}%"></div><div class="mid" style="left:${x(t.base)}%"></div></div></div>`;
+  }).join("");
+
+  // Integrador
+  const ig = M.integrador(p), igb = M.integrador(ref);
+  const last = ig.anios[4], lastb = igb.anios[4];
+  document.getElementById("r-integ").innerHTML =
+    card("Caja acumulada año 5", usd(last.caja), delta(last.caja, lastb.caja), true) +
+    card("Tiendas instaladas a 5 años", fmt(last.base), "") +
+    card("Margen por tienda nueva", usd(ig.margenPorTienda), "") +
+    card("Tiendas al año para cubrir fijos", fmt(ig.tiendasEquilibrio, 1), `<span class="d">sin contar recurrente acumulado</span>`);
+  document.getElementById("t-anios").innerHTML = `<tr><th>Año</th><th>Tiendas nuevas</th><th>Ingresos</th><th>Margen</th><th>Recurrente</th><th>EBITDA</th><th>Caja acum.</th></tr>` +
+    ig.anios.map(a => `<tr><td>${a.anio}</td><td>${a.nuevas}</td><td>${usd(a.ingresos)}</td><td>${usd(a.margen)}</td><td>${usd(a.recurrente)}</td>
+      <td class="${a.ebitda < 0 ? "neg" : ""}">${usd(a.ebitda)}</td><td class="${a.caja < 0 ? "neg" : ""}">${usd(a.caja)}</td></tr>`).join("");
+  drawChart(ig.anios, igb.anios);
+
+  document.getElementById("copyout").value = `Escenario: ${esc}${document.querySelector(".changed") ? " (modificado)" : ""}\n` +
+    Object.entries(p).filter(([k, val]) => val !== M.ESCENARIOS[esc][k]).map(([k, val]) => `${k}: ${M.ESCENARIOS[esc][k]} → ${val}`).join("\n") +
+    `\nRepago cliente: ${anios(c.repagoAnios)} · VPN 5a: ${usd(c.van5)} · Caja integrador año 5: ${usd(last.caja)}`;
+}
+
+function drawChart(a, b) {
+  const W = 520, H = 190, L = 64, R = 12, T = 12, B = 26;
+  const vals = a.map(d => d.caja).concat(b.map(d => d.caja), [0]);
+  let lo = Math.min(...vals), hi = Math.max(...vals); if (hi === lo) hi = lo + 1;
+  const y = v => T + (hi - v) / (hi - lo) * (H - T - B), bw = (W - L - R) / 5;
+  const ticks = [lo, (lo + hi) / 2, hi];
+  let s = ticks.map(t => `<line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/><text x="${L - 6}" y="${y(t) + 4}" text-anchor="end">${(t / 1000).toFixed(0)}k</text>`).join("");
+  s += `<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="var(--muted)"/>`;
+  a.forEach((d, i) => {
+    const x0 = L + i * bw + bw * 0.22, w = bw * 0.56, top = Math.min(y(d.caja), y(0)), h = Math.abs(y(d.caja) - y(0));
+    s += `<rect x="${x0}" y="${top}" width="${w}" height="${Math.max(h, 1)}" fill="${d.caja < 0 ? "var(--bad)" : "var(--ink)"}" opacity=".8"/>`;
+    s += `<line x1="${x0 - 4}" x2="${x0 + w + 4}" y1="${y(b[i].caja)}" y2="${y(b[i].caja)}" stroke="var(--red)" stroke-width="2" stroke-dasharray="3 2"/>`;
+    s += `<text x="${x0 + w / 2}" y="${H - 8}" text-anchor="middle">Año ${d.anio}</text>`;
+  });
+  document.getElementById("chart").innerHTML = s;
+}
+
+buildParams(M.CLIENTE, document.getElementById("p-cliente"));
+buildParams(M.INTEGRADOR, document.getElementById("p-integ"));
+document.querySelectorAll("[data-esc]").forEach(btn => btn.addEventListener("click", () => {
+  esc = btn.dataset.esc; p = { ...M.ESCENARIOS[esc] };
+  document.querySelectorAll("[data-esc]").forEach(x => x.setAttribute("aria-pressed", x === btn));
+  render();
+}));
+document.getElementById("btn-copiar").addEventListener("click", () => {
+  const t = document.getElementById("copyout"), msg = document.getElementById("copiado");
+  (navigator.clipboard ? navigator.clipboard.writeText(t.value) : Promise.reject())
+    .then(() => msg.textContent = "Copiado.")
+    .catch(() => { t.select(); msg.textContent = "Seleccionado: use Cmd+C."; });
+});
+render();
+</script>
